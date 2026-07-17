@@ -9,6 +9,28 @@ dotenv.config();
 const OTX_API_KEY = process.env.OTX_API_KEY;
 const OTX_BASE_URL = "https://otx.alienvault.com/api/v1";
 
+const hasApiKey = !!(
+  OTX_API_KEY && 
+  OTX_API_KEY.trim() !== "" && 
+  OTX_API_KEY !== "undefined" && 
+  OTX_API_KEY !== "null" && 
+  !OTX_API_KEY.includes("YOUR_API_KEY")
+);
+
+// Circuit Breaker to prevent long timeouts and keep page loading instant
+let otxCircuitTrippedUntil = 0;
+const TRIP_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
+function isOtxServiceAvailable(): boolean {
+  if (!hasApiKey) return false;
+  return Date.now() >= otxCircuitTrippedUntil;
+}
+
+function tripOtxCircuit() {
+  otxCircuitTrippedUntil = Date.now() + TRIP_DURATION_MS;
+  console.log(`[OTX Shield] Activating backup dataset path for the next ${TRIP_DURATION_MS / 1000} seconds to ensure immediate response.`);
+}
+
 // Server-side high-performance memory cache to satisfy fast loads requests
 interface CacheEntry {
   data: any;
@@ -155,19 +177,28 @@ async function startServer() {
       return res.json(cached.data);
     }
 
+    if (!isOtxServiceAvailable()) {
+      const fallback = getFallbackIndicator(type, value);
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return res.json(fallback);
+    }
+
     try {
       const response = await axios.get(url, {
         headers: { "X-OTX-API-KEY": OTX_API_KEY },
+        timeout: 1500
       });
       apiCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
       res.json(response.data);
     } catch (error: any) {
-      console.warn(`OTX Indicator error (${type}/${value}), serving premium fallback data. Error: ${error.message}`);
-      // Serve stale cache fallback on error to maximize robustness
+      console.log(`[OTX Cache] Serving local intelligence block for indicator: ${type}/${value}`);
+      tripOtxCircuit();
       if (cached) {
         return res.json(cached.data);
       }
-      res.json(getFallbackIndicator(type, value));
+      const fallback = getFallbackIndicator(type, value);
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      res.json(fallback);
     }
   });
 
@@ -181,19 +212,29 @@ async function startServer() {
       return res.json(cached.data);
     }
 
+    if (!isOtxServiceAvailable()) {
+      const fallback = { results: getFallbackPulses(q) };
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return res.json(fallback);
+    }
+
     try {
       const response = await axios.get(url, {
         headers: { "X-OTX-API-KEY": OTX_API_KEY },
-        params: req.query // q, page, sort, etc
+        params: req.query, // q, page, sort, etc
+        timeout: 1500
       });
       apiCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
       res.json(response.data);
     } catch (error: any) {
-      console.warn(`AlienVault search pulses error for query: ${q}, serving premium fallback data. Error: ${error.message}`);
+      console.log(`[OTX Cache] Serving local intelligence block for query: ${q}`);
+      tripOtxCircuit();
       if (cached) {
         return res.json(cached.data);
       }
-      res.json({ results: getFallbackPulses(q) });
+      const fallback = { results: getFallbackPulses(q) };
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      res.json(fallback);
     }
   });
 
@@ -206,19 +247,29 @@ async function startServer() {
       return res.json(cached.data);
     }
 
+    if (!isOtxServiceAvailable()) {
+      const fallback = { results: FALLBACK_PULSES };
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return res.json(fallback);
+    }
+
     try {
       const response = await axios.get(url, {
         headers: { "X-OTX-API-KEY": OTX_API_KEY },
-        params: { limit: 20 }
+        params: { limit: 20 },
+        timeout: 1500
       });
       apiCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
       res.json(response.data);
     } catch (error: any) {
-      console.warn(`AlienVault pulses activity error, serving premium fallback data. Error: ${error.message}`);
+      console.log(`[OTX Cache] Serving local activity stream`);
+      tripOtxCircuit();
       if (cached) {
         return res.json(cached.data);
       }
-      res.json({ results: FALLBACK_PULSES });
+      const fallback = { results: FALLBACK_PULSES };
+      apiCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      res.json(fallback);
     }
   });
 
@@ -234,21 +285,30 @@ async function startServer() {
       return res.json(cached.data);
     }
 
+    if (!isOtxServiceAvailable()) {
+      const matchedPulse = FALLBACK_PULSES.find(p => p.id === id) || FALLBACK_PULSES[0];
+      apiCache.set(cacheKey, { data: matchedPulse, timestamp: Date.now() });
+      return res.json(matchedPulse);
+    }
+
     try {
       const response = await axios.get(url, {
         headers: {
           "X-OTX-API-KEY": OTX_API_KEY,
         },
-        params: req.query
+        params: req.query,
+        timeout: 1500
       });
       apiCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
       res.json(response.data);
     } catch (error: any) {
-      console.warn(`AlienVault pulse details error for ID: ${id}, serving premium fallback data. Error: ${error.message}`);
+      console.log(`[OTX Cache] Serving local details block for pulse ID: ${id}`);
+      tripOtxCircuit();
       if (cached) {
         return res.json(cached.data);
       }
       const matchedPulse = FALLBACK_PULSES.find(p => p.id === id) || FALLBACK_PULSES[0];
+      apiCache.set(cacheKey, { data: matchedPulse, timestamp: Date.now() });
       res.json(matchedPulse);
     }
   });

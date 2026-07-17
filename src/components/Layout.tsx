@@ -18,9 +18,10 @@ export const Header = ({ activeTab, setActiveTab }: HeaderProps) => {
             className="flex items-center group transition-all select-none cursor-pointer"
           >
             <img 
-              src="https://xdrive.conzex.com/api/files/public/b8dad769-8a2a-4aa6-a1c6-96ec70a81158/light.svg" 
+              src="https://files.conzex.com/api/files/public/d7463184-0d7e-46f8-8d21-606352af2a26/Dx-Logo-Dark.png" 
               alt="Defendx Logo" 
-              className="h-10 w-auto object-contain transition-transform group-hover:scale-102" 
+              className="h-10 w-auto object-contain transition-transform group-hover:scale-[1.02]" 
+              referrerPolicy="no-referrer"
             />
           </button>
         </div>
@@ -80,9 +81,10 @@ export const Footer = () => {
         {/* Shield Icon in footer */}
         <div className="flex items-center justify-center mb-8">
           <img 
-            src="https://xdrive.conzex.com/api/files/public/8823c722-4280-464a-ac2e-76cb0963cf43/full-dark.svg" 
+            src="https://files.conzex.com/api/files/public/6b185339-7a36-4fd4-8bcd-4a59b05faf57/Dx-Logo-light.png" 
             alt="Defendx Logo" 
-            className="h-14 w-auto object-contain opacity-90 transition-opacity hover:opacity-100" 
+            className="h-12 w-auto object-contain opacity-90 transition-opacity hover:opacity-100" 
+            referrerPolicy="no-referrer"
           />
         </div>
         
